@@ -206,4 +206,4 @@ def main() -> None:
 
 logger.info('Initializing window...')
 
-ImGuiStandalone('Mouse Image Drawer.', 375, 215, True, 'insert', None).loop(main)
+ImGuiStandalone('Mouse Image Drawer.', 375, 215, True, None, None).loop(main)
