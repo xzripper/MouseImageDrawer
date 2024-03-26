@@ -1,4 +1,4 @@
-<h1 align="center">mouse_image_drawer v1.0.0 ALPHA</h1>
+<h1 align="center">mouse_image_drawer v1.1.0 ALPHA</h1>
 <p align="center"><img src="preview.png"><br><i>Turn image to mouse movements!</i></p><hr>
 <p align="center">Technologies used:
   <ul>
@@ -9,4 +9,4 @@
     <li><a href="https://github.com/Delgan/loguru">loguru 0.6.0</a></li>
   </ul>
 </p>
-<hr><p align="center"><kbd>V1.0.0-ALPHA MIT License (2024).</kbd></p>
+<hr><p align="center"><kbd>V1.1.0-ALPHA MIT License (2024).</kbd></p>
