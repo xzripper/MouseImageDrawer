@@ -17,7 +17,7 @@ def draw_more_black_r_white(image_path: str, area: tuple, threshold: int, invers
     pixels_drawn = 0
 
     for y in range(area[1]):
-        for x in range(area[0]):            
+        for x in range(area[0]):
             if _utils.get_value('request_stop') or is_pressed('F5'): break
     
             b, g, r = image[y, x]
