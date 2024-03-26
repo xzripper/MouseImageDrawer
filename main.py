@@ -2,18 +2,18 @@ from imgui_standalone import ImGuiStandalone, ImGuiStandaloneUtilities, IMGUI_ST
 
 from imgui import text, text_disabled, button, radio_button, checkbox, input_int, input_int2, input_float, dummy, same_line
 
-from ui_utils import ask_image, ask_area
+from ui_utils import error, ask_image, ask_area
 
-from draw import draw_more_black_r_white, draw_brightness_threshold, draw_edge
+from draw import draw_more_black_r_white, draw_brightness_threshold, draw_edge, draw_laplacian
 
 from time import perf_counter
 
 from loguru import logger
 
 
-logger.info('Ready!')
+MID_VERSION: str = 'v1.1.0-alpha'
 
-MID_VERSION: str = 'v1.0.0'
+DEFAULT_THRESHOLD_EDGE: list = [25, 25]
 
 ImGuiStandaloneUtilities.set_value('image', None)
 
@@ -33,7 +33,7 @@ ImGuiStandaloneUtilities.set_value('request_stop', False)
 
 ImGuiStandaloneUtilities.set_value('_EDGE', True)
 
-ImGuiStandaloneUtilities.set_value('_threshold', 0)
+ImGuiStandaloneUtilities.set_value('_threshold', DEFAULT_THRESHOLD_EDGE)
 
 logger.info(f'Registered {", ".join(ImGuiStandaloneUtilities.values.keys())}.')
 
@@ -88,23 +88,33 @@ def main() -> None:
         if not isinstance(ImGuiStandaloneUtilities.get_value('_threshold'), int):
             logger.info('Casting _threshold to INT...')
 
-            ImGuiStandaloneUtilities.set_value('_threshold', 0)
+            ImGuiStandaloneUtilities.set_value('_threshold', ImGuiStandaloneUtilities.get_value('_threshold')[0])
 
-        ImGuiStandaloneUtilities.set_value('_threshold', 0 if (_t := input_int('Threshold.', ImGuiStandaloneUtilities.get_value('_threshold'))[1]) < 0 else _t)
+        ImGuiStandaloneUtilities.set_value('_threshold', 255 if ImGuiStandaloneUtilities.get_value('_threshold') > 255 else \
+            (0 if (_t := input_int('Threshold.', ImGuiStandaloneUtilities.get_value('_threshold'))[1]) < 0 else _t))
 
     else:
         if not isinstance(ImGuiStandaloneUtilities.get_value('_threshold'), list):
             logger.info('Casting _threshold to LIST...')
 
-            ImGuiStandaloneUtilities.set_value('_threshold', [0, 0])
+            ImGuiStandaloneUtilities.set_value('_threshold', [25, 25])
 
-        ImGuiStandaloneUtilities.set_value('_threshold', [0, 0] if sum(_t := input_int2('Threshold.', *ImGuiStandaloneUtilities.get_value('_threshold'))[1]) < 0 else _t)
+        _threshold = input_int2('Threshold.', *ImGuiStandaloneUtilities.get_value('_threshold'))[1]
+
+        if _threshold[0] < 0: _threshold[0] = 0
+        elif _threshold[0] > 255: _threshold[0] = 255
+
+        if _threshold[1] < 0: _threshold[1] = 0
+        elif _threshold[1] > 255: _threshold[1] = 255
+
+        ImGuiStandaloneUtilities.set_value('_threshold', _threshold)
 
     ImGuiStandaloneUtilities.set_value('skip_after', -1 if (_s := input_int('Skip each:...', ImGuiStandaloneUtilities.get_value('skip_after'))[1]) < -1 else _s)
 
     if radio_button('MORE_BLACK_R_WHITE', ImGuiStandaloneUtilities.get_value('_MORE_BLACK_R_WHITE')):
         ImGuiStandaloneUtilities.set_value('_BRIGHTNESS_THRESHOLDING', False)
         ImGuiStandaloneUtilities.set_value('_EDGE', False)
+        ImGuiStandaloneUtilities.set_value('_LAPLACIAN', False)
 
         ImGuiStandaloneUtilities.set_value('_MORE_BLACK_R_WHITE', not ImGuiStandaloneUtilities.get_value('_MORE_BLACK_R_WHITE'))
 
@@ -115,14 +125,16 @@ def main() -> None:
     if radio_button('BRIGHTNESS_THRESHOLDING', ImGuiStandaloneUtilities.get_value('_BRIGHTNESS_THRESHOLDING')):
         ImGuiStandaloneUtilities.set_value('_MORE_BLACK_R_WHITE', False)
         ImGuiStandaloneUtilities.set_value('_EDGE', False)
+        ImGuiStandaloneUtilities.set_value('_LAPLACIAN', False)
 
         ImGuiStandaloneUtilities.set_value('_BRIGHTNESS_THRESHOLDING', not ImGuiStandaloneUtilities.get_value('_BRIGHTNESS_THRESHOLDING'))
 
         logger.info('Mode: BRIGHTNESS_THRESHOLDING.')
 
-    if radio_button('EDGE', ImGuiStandaloneUtilities.get_value('_EDGE')):
+    if radio_button('EDGE_CANNY', ImGuiStandaloneUtilities.get_value('_EDGE')):
         ImGuiStandaloneUtilities.set_value('_MORE_BLACK_R_WHITE', False)
         ImGuiStandaloneUtilities.set_value('_BRIGHTNESS_THRESHOLDING', False)
+        ImGuiStandaloneUtilities.set_value('_LAPLACIAN', False)
 
         ImGuiStandaloneUtilities.set_value('_EDGE', not ImGuiStandaloneUtilities.get_value('_EDGE'))
 
@@ -130,7 +142,16 @@ def main() -> None:
 
     same_line()
 
-    text_disabled('COLOR_CLUSTERING'); same_line()
+    if radio_button('LAPLACIAN', ImGuiStandaloneUtilities.get_value('_LAPLACIAN')):
+        ImGuiStandaloneUtilities.set_value('_MORE_BLACK_R_WHITE', False)
+        ImGuiStandaloneUtilities.set_value('_BRIGHTNESS_THRESHOLDING', False)
+        ImGuiStandaloneUtilities.set_value('_EDGE', False)
+
+        ImGuiStandaloneUtilities.set_value('_LAPLACIAN', not ImGuiStandaloneUtilities.get_value('_LAPLACIAN'))
+
+        logger.info('Mode: LAPLACIAN.')
+
+    same_line()
 
     ImGuiStandaloneUtilities.set_value('inversed', checkbox('Inverse.', ImGuiStandaloneUtilities.get_value('inversed'))[1])
 
@@ -142,6 +163,16 @@ def main() -> None:
 
     if not ImGuiStandaloneUtilities.get_value('drawing'):
         if button('Draw.'):
+            if not ImGuiStandaloneUtilities.get_value('image'):
+                error('Missing image.', 'Please specify image.')
+
+                return
+
+            if not ImGuiStandaloneUtilities.get_value('draw_area'):
+                error('Missing area.', 'Please specify area.')
+
+                return
+
             before_drawing = perf_counter()
 
             if ImGuiStandaloneUtilities.get_value('_MORE_BLACK_R_WHITE'):
@@ -186,7 +217,23 @@ def main() -> None:
 
                     ImGuiStandaloneUtilities.get_value('delay'), ImGuiStandaloneUtilities)
 
+            elif ImGuiStandaloneUtilities.get_value('_LAPLACIAN'):
+                logger.info('Starting drawing with mode LAPLACIAN.')
+
+                draw_laplacian(
+                    ImGuiStandaloneUtilities.get_value('image'),
+
+                    ImGuiStandaloneUtilities.get_value('draw_area'),
+
+                    ImGuiStandaloneUtilities.get_value('_threshold'),
+
+                    ImGuiStandaloneUtilities.get_value('inversed'),
+
+                    ImGuiStandaloneUtilities.get_value('delay'), ImGuiStandaloneUtilities)
+
             ImGuiStandaloneUtilities.set_value('_drawing_took', perf_counter() - before_drawing)
+
+            logger.info(f'Drawing took: {ImGuiStandaloneUtilities.get_value("_drawing_took"):.2f}s.')
 
     else: text_disabled('Draw.')
 
@@ -202,8 +249,10 @@ def main() -> None:
 
     else: text_disabled('Stop. (F5).')
 
-    same_line(); text(f'MID {MID_VERSION}'); same_line(); dummy(20, 0); same_line(); text(F'imgui-s {IMGUI_STANDALONE_VERSION}')
+    same_line(); text(f'MID {MID_VERSION}'); same_line(); dummy(15, 0); same_line(); text(F'imgui-s {IMGUI_STANDALONE_VERSION}')
 
 logger.info('Initializing window...')
 
-ImGuiStandalone('Mouse Image Drawer.', 375, 215, True, None, None).loop(main)
+ImGuiStandalone('Mouse Image Drawer.', 390, 215, False, None, None).loop(main)
+
+logger.info('Window closed.')

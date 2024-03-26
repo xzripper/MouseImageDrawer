@@ -2,12 +2,17 @@ from tkinter import Tk, Label, Button
 
 from tkinter.filedialog import askopenfilename
 
+from tkinter.messagebox import showerror
+
 from threading import Thread
 
 
 Tk().withdraw()
 
 _area = [None]
+
+def error(title: str, message: str) -> None:
+    showerror(title, message)
 
 def ask_image() -> str:
     return askopenfilename(filetypes=[('Image', '*.png *.jpg *.jpeg')], title='Select image.')
