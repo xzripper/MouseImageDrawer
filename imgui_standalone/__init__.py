@@ -4,15 +4,17 @@ from imgui.integrations.pygame import PygameRenderer
 
 from OpenGL.GL import glClearColor, glClear, GL_COLOR_BUFFER_BIT
 
-from pygame import OPENGL, DOUBLEBUF, NOFRAME, QUIT, MOUSEBUTTONUP, MOUSEBUTTONDOWN, MOUSEMOTION, SHOWN, HIDDEN
+from pygame import Rect, OPENGL, DOUBLEBUF, NOFRAME, QUIT, MOUSEBUTTONUP, MOUSEBUTTONDOWN, MOUSEMOTION, SHOWN, HIDDEN
 
-from pygame.display import set_mode, set_caption, flip
+from pygame.display import set_mode, set_caption, set_icon, flip
 
 from pygame.event import get as pg_events
 
 from pygame.key import get_pressed, key_code
 
 from pygame.mouse import get_pos
+
+from pygame.image import load
 
 from imgui import (create_context as imgui_create_ctx,
 
@@ -45,22 +47,35 @@ from typing import Callable, Any
 
 DEFAULT_SHOW_HIDE_KEY: str = 'insert'
 
-IMGUI_STANDALONE_VERSION: str = '1.0.0'
+IMGUI_STANDALONE_VERSION: str = '1.1.0-alpha'
 
 class ImGuiStandalone:
     """ImGuiStandalone class."""
 
-    def __init__(self, title: str, width: int, height: int, always_on_top: bool=False, show_hide_key: int=DEFAULT_SHOW_HIDE_KEY, imgui_flags: Any=None) -> None:
+    def __init__(self,
+                 title: str,
+
+                 width: int,
+                 height: int,
+
+                 always_on_top: bool=False,
+
+                 show_hide_key: int=DEFAULT_SHOW_HIDE_KEY,
+
+                 background_color: tuple[int, int, int]=(0, 0, 0),
+
+                 imgui_flags: Any=None) -> None:
         """Initialize standalone window."""
+        set_mode((1, 1), NOFRAME); imgui_create_ctx()
+
         self._pg_window = set_mode((width, height), DOUBLEBUF | OPENGL | NOFRAME)
 
         set_caption(title)
 
-        imgui_create_ctx()
+        window = getActiveWindow(); (
+            window.move(-width // 2, -height // 2),
 
-        print('ImGuiStanalone[PyGame]: Running.')
-
-        getActiveWindow().alwaysOnTop(always_on_top)
+            window.alwaysOnTop(always_on_top)); del window
 
         self._pg_render = PygameRenderer()
 
@@ -68,13 +83,21 @@ class ImGuiStandalone:
 
         self._imgui_io.display_size = (width, height)
 
+        self.hidden = False
+
         self.title = title
 
         self.show_hide_key = show_hide_key
 
-        self.hidden = False
+        self.background_color = background_color
 
         self.imgui_flags = imgui_flags
+
+        self._window_header_rect = Rect(0, 0, self._imgui_io.display_size[0], 20)
+
+    def set_icon(self, icon: str) -> None:
+        """Set window icon."""
+        set_icon(load(icon))
 
     def loop(self, main_func: Callable, on_close: Callable=None) -> None:
         """Main loop."""
@@ -89,8 +112,10 @@ class ImGuiStandalone:
                     moving = True
 
                 elif event.type == MOUSEMOTION:
-                    if moving:
-                        getActiveWindow().move(int(get_pos()[0] - self._imgui_io.display_size.x // 8), int(get_pos()[1] - self._imgui_io.display_size.y // 8))
+                    mx, my = get_pos()
+
+                    if moving and Rect(mx, my, 16, 16).colliderect(self._window_header_rect):
+                        getActiveWindow().move(mx - 10, my - 5)
 
                 elif event.type == MOUSEBUTTONUP:
                     moving = False
@@ -103,12 +128,12 @@ class ImGuiStandalone:
                 if self.hidden and ImGuiStandaloneUtilities.pressed_global(self.show_hide_key):
                     self.show()
 
-                    sleep(.1)
+                    sleep(.2)
 
                 elif not self.hidden and ImGuiStandaloneUtilities.pressed_global(self.show_hide_key):
                     self.hide()
 
-                    sleep(.1)
+                    sleep(.2)
 
             new_frame()
 
@@ -133,7 +158,7 @@ class ImGuiStandalone:
 
             end()
 
-            glClearColor(0, 0, 0, 1)
+            glClearColor(*self.background_color, 1)
 
             glClear(GL_COLOR_BUFFER_BIT)
 
@@ -167,13 +192,11 @@ class ImGuiStandaloneUtilities:
     @staticmethod
     def set_value(key: str, value: Any) -> None:
         """Save value."""
-
         ImGuiStandaloneUtilities.values[key] = value
 
     @staticmethod
     def get_value(key: str) -> Any:
         """Get value."""
-
         if key not in ImGuiStandaloneUtilities.values:
             return None
 
@@ -182,11 +205,9 @@ class ImGuiStandaloneUtilities:
     @staticmethod
     def pressed(key: str) -> bool:
         """Is key pressed."""
-
         return get_pressed()[key_code(key)]
 
     @staticmethod
     def pressed_global(key: str) -> bool:
         """Is key pressed globally."""
-
         return is_pressed(key)

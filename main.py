@@ -1,6 +1,6 @@
 from imgui_standalone import ImGuiStandalone, ImGuiStandaloneUtilities, IMGUI_STANDALONE_VERSION
 
-from imgui import text, text_disabled, button, radio_button, checkbox, input_int, input_int2, input_float, dummy, same_line
+from imgui import text, text_disabled, button, radio_button, checkbox, input_int, input_int2, input_float, same_line
 
 from ui_utils import error, ask_image, ask_area
 
@@ -11,7 +11,7 @@ from time import perf_counter
 from loguru import logger
 
 
-MID_VERSION: str = 'v1.1.0-alpha'
+MID_VERSION: str = 'v1.1.1-alpha'
 
 DEFAULT_THRESHOLD_EDGE: list = [25, 25]
 
@@ -97,7 +97,7 @@ def main() -> None:
         if not isinstance(ImGuiStandaloneUtilities.get_value('_threshold'), list):
             logger.info('Casting _threshold to LIST...')
 
-            ImGuiStandaloneUtilities.set_value('_threshold', [25, 25])
+            ImGuiStandaloneUtilities.set_value('_threshold', DEFAULT_THRESHOLD_EDGE)
 
         _threshold = input_int2('Threshold.', *ImGuiStandaloneUtilities.get_value('_threshold'))[1]
 
@@ -155,11 +155,13 @@ def main() -> None:
 
     ImGuiStandaloneUtilities.set_value('inversed', checkbox('Inverse.', ImGuiStandaloneUtilities.get_value('inversed'))[1])
 
+    same_line()
+
     if ImGuiStandaloneUtilities.get_value('_drawing_took'):
-        same_line(); text(f'[Took {ImGuiStandaloneUtilities.get_value("_drawing_took"):.1f}s].')
+        text(f'[Took {ImGuiStandaloneUtilities.get_value("_drawing_took"):.1f}s].')
 
     else:
-        same_line(); text('[Took: XXXs].')
+        text('[Took: XXXs].')
 
     if not ImGuiStandaloneUtilities.get_value('drawing'):
         if button('Draw.'):
@@ -249,10 +251,8 @@ def main() -> None:
 
     else: text_disabled('Stop. (F5).')
 
-    same_line(); text(f'MID {MID_VERSION}'); same_line(); dummy(15, 0); same_line(); text(F'imgui-s {IMGUI_STANDALONE_VERSION}')
+    same_line(); text(f'MID {MID_VERSION}'); same_line(); text(F'imgui-s {IMGUI_STANDALONE_VERSION}')
 
 logger.info('Initializing window...')
 
-ImGuiStandalone('Mouse Image Drawer.', 390, 215, False, None, None).loop(main)
-
-logger.info('Window closed.')
+ImGuiStandalone('Mouse Image Drawer.', 405, 215, False, None, (0, 0, 0), None).loop(main, lambda: logger.info('Window closed.'))
